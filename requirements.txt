@@ -1,0 +1,4 @@
+fake-useragent==0.1.7
+requests==2.13.0
+click==6.7
+sqlalchemy
