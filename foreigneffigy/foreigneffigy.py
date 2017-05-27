@@ -4,6 +4,8 @@ from model import sa, sessionmaker
 from pprint import pprint
 from sqlalchemy.orm.exc import NoResultFound
 from validate import validate_date
+import configparser
+# import validate
 import base64
 import click
 import model
@@ -128,44 +130,40 @@ class ForeignEffigy(requests.Session):
 
 
 @click.command()
-@click.option('--username', required=True)
-@click.option('--password', required=True)
-@click.option('--contract-id', required=True)
 @click.option('--db-file', required=False, default='fe.db')
 @click.option('--start-date', required=True, callback=validate_date)
 @click.option('--end-date', required=True, callback=validate_date)
-def foreigneffigy(
-    username,
-    password,
-    contract_id,
-    db_file,
-    start_date,
-    end_date
-        ):
+@click.option('--conf-file', required=True)
+def foreigneffigy(db_file, start_date, end_date, conf_file):
+
+    config = configparser.ConfigParser()
+    config.read(conf_file)
 
     engine = sa.create_engine('sqlite:///{0}'.format(db_file))
     model.Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
 
-    try:
-        contract = (
-            session.query(model.Contract).filter_by(id=contract_id).one()
-        )
-    except sa.orm.exc.NoResultFound:
-        contract = model.Contract(id=contract_id)
-        session.add(contract)
-        session.commit()
+    for section in config.sections():
+        try:
+            contract = (
+                session.query(model.Contract).filter_by(id=section).one()
+            )
+        except sa.orm.exc.NoResultFound:
+            contract = model.Contract(id=section)
+            session.add(contract)
+            session.commit()
 
-    fe = ForeignEffigy(
-        username,
-        password,
-        contract=contract,
-        db_session=session
-    )
-    fe.login()
-    fe.energy_usage(start_date, end_date)
-    fe.update_db()
+        fe = ForeignEffigy(
+            config[section]['username'],
+            config[section]['password'],
+            contract=contract,
+            db_session=session
+        )
+        fe.login()
+        fe.energy_usage(start_date, end_date)
+        fe.update_db()
+
 
 if __name__ == '__main__':
     foreigneffigy()

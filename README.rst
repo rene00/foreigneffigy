@@ -17,12 +17,14 @@ Then, build the virtualenv::
 
     $ make
 
-And run the script, swapping out the appropriate params::
+Create a fe.ini file with your contract id as the section and username and
+password key/values.
+
+Run the script, swapping out the appropriate params::
 
     $ venv/bin/python foreigneffigy/foreigneffigy.py \
-        --username=username@example.org \
-        --password=passw0rd \
-        --contract-id=1111111111 \
+        --conf-file=fe.ini \
+        --db-file=fe.db \
         --start-date=2017-01-01 \
         --end-date=2017-01-31
 
