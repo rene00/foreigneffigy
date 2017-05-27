@@ -29,3 +29,6 @@ Run the script, swapping out the appropriate params::
         --end-date=2017-01-31
 
 You should have an sqlite3 file called fe.db with your data. Enjoy!
+
+Remove --start-date and --end-date params and fe will download the last 7 days
+worth of data.

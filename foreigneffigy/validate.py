@@ -7,3 +7,5 @@ def validate_date(ctx, param, value):
         return dt.strptime(value, "%Y-%m-%d")
     except ValueError:
         raise click.BadParameter("Date format needs to be YYYY-MM-DD.")
+    except TypeError:
+        return None

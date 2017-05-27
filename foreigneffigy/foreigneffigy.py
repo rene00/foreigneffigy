@@ -5,7 +5,7 @@ from pprint import pprint
 from sqlalchemy.orm.exc import NoResultFound
 from validate import validate_date
 import configparser
-# import validate
+import datetime
 import base64
 import click
 import model
@@ -130,9 +130,9 @@ class ForeignEffigy(requests.Session):
 
 
 @click.command()
-@click.option('--db-file', required=False, default='fe.db')
-@click.option('--start-date', required=True, callback=validate_date)
-@click.option('--end-date', required=True, callback=validate_date)
+@click.option('--db-file', default='fe.db')
+@click.option('--start-date', callback=validate_date)
+@click.option('--end-date', callback=validate_date)
 @click.option('--conf-file', required=True)
 def foreigneffigy(db_file, start_date, end_date, conf_file):
 
@@ -143,6 +143,15 @@ def foreigneffigy(db_file, start_date, end_date, conf_file):
     model.Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
     session = Session()
+
+    if start_date is None:
+        start_date = datetime.datetime.now() - datetime.timedelta(days=7)
+
+    if end_date is None:
+        end_date = datetime.datetime.now()
+
+    if end_date < start_date:
+        raise click.BadParameter("End date must be greater than start date.")
 
     for section in config.sections():
         try:
