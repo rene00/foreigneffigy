@@ -4,12 +4,11 @@ VENV ?= $(PWD)/venv
 PYTHON = $(VENV)/bin/python3
 PIP = $(VENV)/bin/pip
 
-default: build
+default: $(VENV)
 
-build:
+$(VENV):
 	virtualenv --python=python3 $(VENV)
-	$(PIP) install -r requirements.txt
-
+	$(PYTHON) setup.py install
 
 clean:
 	rm -rf $(VENV) __pycache__
