@@ -45,7 +45,7 @@ class EnergyUsage(Base):
     )
     feedin_consumption = sa.Column(sa.String(32))
     feedin_consumption_uom = sa.Column(sa.String(32))
-    feedin_cost = sa.Column(sa.String(32))
+    feedin_cost = sa.Column(sa.Numeric(precision=3, scale=2), default='0.00')
     solar_present = sa.Column(sa.Boolean)
     value_pot = sa.Column(sa.Numeric(precision=3, scale=2), default='0.00')
     contract_id = sa.Column(sa.Integer, sa.ForeignKey('contract.id'))

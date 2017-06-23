@@ -4,6 +4,7 @@ from model import sa, sessionmaker
 from pprint import pprint
 from sqlalchemy.orm.exc import NoResultFound
 from validate import validate_date
+import logging
 import configparser
 import datetime
 import base64
@@ -13,19 +14,40 @@ import requests
 import sys
 
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 class ForeignEffigyError(Exception):
     pass
 
 
 class ForeignEffigy(requests.Session):
 
-    def __init__(self, username, password, contract, db_session):
-        self.username = username
-        self.password = password
+    def __init__(self, config, contract, db_session, debug=False):
+        self.config = config
         self.contract = contract
+        self.username = config[str(self.contract.id)]['username']
+        self.password = config[str(self.contract.id)]['password']
+
         self.db_session = db_session
         self.session = requests.Session()
         self.session.headers = {'User-Agent': self.user_agent}
+        self.debug = debug
+
+    @property
+    def daily_supply_charge(self):
+        """ The daily supply charge.
+
+        If daily_supply_charge exists within config, use it.
+        """
+        try:
+            return float(
+                self.config[str(self.contract.id)]
+                ['daily_supply_charge']
+            )
+        except KeyError:
+            return None
 
     def login(self):
         url = base64.urlsafe_b64decode(
@@ -83,23 +105,39 @@ class ForeignEffigy(requests.Session):
         )
         self.usage = resp.json()
 
-    def get_account_properties(session):
+    def _add_daily_supply_charge(self, usage):
+        """Manually add supply charge to hourly usage.
+
+        Provider stopped including supply charge with usage data so we
+        have to manually add it in if it exists within the config.
+        """
+        if self.daily_supply_charge:
+            usage['feedinCost'] = self.daily_supply_charge / 24
+            usage['feedinConsumption'] = 1
+            usage['feedinConsumptionUom'] = 'cents'
+        return usage
+
+    @property
+    def account(self):
+        """ Return account properties. """
         url = base64.urlsafe_b64decode(
             'aHR0cHM6Ly93d3cub3JpZ2luZW5lcmd5LmNvbS5hdS9iaW4vb3JpZ2luLX'
-            'VpL2dldEFjY291bnRQcm9wZXJ0aWVzgetAccountProperties'
+            'VpL2dldEFjY291bnRQcm9wZXJ0aWVz'
         )
         referer = base64.urlsafe_b64decode(
             'aHR0cHM6Ly93d3cub3JpZ2luZW5lcmd5LmNvbS5hdS9mb3ItaG9tZS9teS1'
             'hY2NvdW50L3VzYWdlLmh0bWw='
         )
         self.session.headers.update({'Referer': referer})
-        resp = session.get(url, headers=headers)
+        resp = self.session.get(url, headers=self.session.headers)
         return resp.json()
 
     def update_db(self):
         data = self.usage.get(str(self.contract.id))
         for date, interval in data.items():
             for hourly, usage in interval.items():
+                usage = self._add_daily_supply_charge(usage)
+                logger.debug(usage)
                 hour = dt.strptime(hourly, '%d %B, %Y %H:%M')
                 energy_usage = model.EnergyUsage(
                     date=hour,
@@ -134,7 +172,11 @@ class ForeignEffigy(requests.Session):
 @click.option('--start-date', callback=validate_date)
 @click.option('--end-date', callback=validate_date)
 @click.option('--conf-file', required=True)
-def foreigneffigy(db_file, start_date, end_date, conf_file):
+@click.option('--debug', is_flag=True, default=False)
+def foreigneffigy(db_file, start_date, end_date, conf_file, debug):
+
+    if debug:
+        logger.setLevel(logging.DEBUG)
 
     config = configparser.ConfigParser()
     config.read(conf_file)
@@ -164,12 +206,15 @@ def foreigneffigy(db_file, start_date, end_date, conf_file):
             session.commit()
 
         fe = ForeignEffigy(
-            config[section]['username'],
-            config[section]['password'],
+            config,
             contract=contract,
-            db_session=session
+            db_session=session,
+            debug=debug
         )
         fe.login()
+        # Display account properties if we're debugging.
+        if debug:
+            logger.debug(fe.account)
         fe.energy_usage(start_date, end_date)
         fe.update_db()
 
